@@ -29,10 +29,13 @@ Sign-in is **not** handled by this plugin — use the Codex CLI.
 This package must be resolvable from your profile directory and added as a row in the profile's patch layer. For the default `web` profile:
 
 ```sh
-# 1. install the package into the profile
+# 1. install the package into the profile (no pnpm on PATH? run it through
+#    corepack: COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm add …)
 cd ~/.dsh/profiles
 pnpm add dsh-llm-openai-codex@file:/path/to/dsh-codex-plugin --filter ./web
 ```
+
+With pnpm on `PATH`, `dsh plugin --profile web add dsh-llm-openai-codex@file:/path/to/dsh-codex-plugin` does the same thing.
 
 ```yaml
 # 2. ~/.dsh/profiles/web/cordis.patch.yml
