@@ -44,7 +44,9 @@ for await (const chunk of adapter.stream({
   } else if (chunk.type === 'usage') {
     usage = chunk.usage;
   } else if (chunk.type === 'finish') {
-    console.log(`[smoke] finish reason: ${chunk.reason}`);
+    console.log(`[smoke] finish: ${JSON.stringify(chunk)}`);
+  } else {
+    console.log(`[smoke] chunk: ${JSON.stringify(chunk)}`);
   }
 }
 console.log(`[smoke] response text: ${JSON.stringify(text)}`);
