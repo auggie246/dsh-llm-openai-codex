@@ -1,6 +1,6 @@
 {
   "name": "dsh-llm-openai-codex",
-  "description": "OpenAI Codex (ChatGPT Plus/Pro subscription) LLM provider adapter for the DeepSeek Harness \u2014 OAuth tokens from the Codex CLI, no API key required",
+  "description": "OpenAI Codex (ChatGPT Plus/Pro subscription) provider for DeepSeek Harness with DSH Web OAuth, device code, and shared Codex CLI credentials",
   "version": "0.1.0",
   "type": "module",
   "license": "Apache-2.0",
@@ -8,7 +8,19 @@
   "exports": {
     ".": "./lib/index.js",
     "./auth": "./lib/auth.js",
+    "./client": "./lib/client.js",
+    "./typert": "./lib/remote.js",
     "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ],
+      "platform": "web"
+    }
   },
   "files": [
     "lib/",
@@ -23,6 +35,13 @@
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.7",
     "@deepseek-ai/dsh-llm-pi-ai": "^0.1.0-rc.7",
     "@deepseek-ai/dsh-timeout": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-api-gateway": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.0-rc.7",
+    "react": "^18.2.0",
     "@deepseek-ai/schemastery": "^3.18.1",
     "@earendil-works/pi-ai": "^0.82.1"
   },
@@ -31,6 +50,13 @@
     "@deepseek-ai/dsh-llm": "^0.1.0-rc.7",
     "@deepseek-ai/dsh-llm-pi-ai": "^0.1.0-rc.7",
     "@deepseek-ai/dsh-timeout": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-api-gateway": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.0-rc.7",
+    "react": "^18.2.0",
     "@deepseek-ai/schemastery": "^3.18.1",
     "@earendil-works/pi-ai": "^0.82.1"
   },

@@ -22,6 +22,17 @@ function mockCtx() {
       },
     },
     get: () => undefined,
+    settings: {
+      register(_namespace, _schema, options) {
+        let value = { ...options.base };
+        return {
+          get: () => value,
+          watch: () => () => {},
+          update: async (patch) => { value = { ...value, ...patch }; },
+        };
+      },
+    },
+    effect: (callback) => callback(),
     logger: {
       info: (msg) => logs.info.push(msg),
       warn: (msg) => logs.warn.push(msg),
@@ -31,9 +42,9 @@ function mockCtx() {
 }
 
 test('resolving the default route adopts the pi-ai openai-codex catalog', () => {
-  const { profiles, route, authPath } = resolveRoute({});
+  const { profiles, route, customAuthPath } = resolveRoute({});
   assert.equal(route, 'openai-codex');
-  assert.match(authPath, /auth\.json$/);
+  assert.equal(customAuthPath, undefined);
   const profile = profiles.get(route);
   assert.ok(profile.piProvider.getModels().length > 0, 'catalog serves models');
   assert.equal(profile.piProvider.baseUrl, 'https://chatgpt.com/backend-api');
@@ -80,7 +91,7 @@ test('resolveModel reports catalog capacities and reasoning efforts', async () =
 
 test('plugin identity matches the composition contract', () => {
   assert.equal(name, 'llm-openai-codex');
-  assert.deepEqual(inject, ['llm']);
+  assert.deepEqual(inject, ['llm', 'settings', 'typert']);
 });
 
 test('a stream resolves the auth file before any network request', async () => {

@@ -13,12 +13,15 @@
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { resolveRoute } from '../lib/index.js';
-import { createCodexAuth } from '../lib/auth.js';
+import { createCodexAuth, defaultCodexAuthPath } from '../lib/auth.js';
 
 const model = process.argv[2] ?? 'gpt-5.4-mini';
 
 console.log(`[smoke] resolving route and credentials...`);
-const { profiles, route, authPath, refreshMarginMs } = resolveRoute({});
+const { profiles, route, refreshMarginMs } = resolveRoute({});
+// The standalone smoke deliberately exercises the shared Codex CLI source;
+// the DSH-managed source is created interactively from the Settings card.
+const authPath = defaultCodexAuthPath();
 console.log(`[smoke] route "${route}" serves: ${profiles.get(route).piProvider.getModels().map((m) => m.id).join(', ')}`);
 const auth = createCodexAuth({ path: authPath, refreshMarginMs });
 console.log(`[smoke] credentials: ${auth.path} (account ${(await auth.current()).accountId ?? 'unknown'})`);
