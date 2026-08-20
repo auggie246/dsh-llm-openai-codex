@@ -56,3 +56,29 @@ test('registers the Settings card before the optional Remote bridge settles', as
   releaseMount(async () => {});
   await started;
 });
+
+test('OAuth facade resolves its dynamically mounted Remote through ctx.get()', async () => {
+  const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
+  let handoff;
+  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { handoff = value; } } } });
+  const client = handoff.factory((specifier) => {
+    if (specifier === 'react') return { createElement() {} };
+    throw new Error(`Unexpected client dependency: ${specifier}`);
+  });
+  let card;
+  const target = { status: async () => ({ ok: true, value: { connected: true } }) };
+  const remote = { $mount: async () => async () => {} };
+  Object.defineProperty(remote, 'codexAuth', {
+    get() { throw new Error('cannot get property "remote.codexAuth" without inject'); },
+  });
+  client.apply({
+    effect(callback) { return callback(); },
+    get(key) { return key === 'remote.codexAuth' ? target : undefined; },
+    remote,
+    slots: {
+      inject(_name, callback) { callback(); },
+      register(options) { card = options; return () => {}; },
+    },
+  });
+  assert.deepEqual(await card.inject().remote.status(), { ok: true, value: { connected: true } });
+});
