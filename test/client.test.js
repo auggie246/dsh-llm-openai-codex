@@ -32,6 +32,8 @@ test('browser factory assigns exports through its local module object', async ()
   assert.match(source, /module\.exports\.(?:apply|inject)\s*=/);
   assert.match(source, /'aria-expanded': open/);
   assert.match(source, /onClick: \(\) => setOpen\(!open\)/);
+  assert.match(source, /padding: '14px 16px'/);
+  assert.match(source, /fontSize: 15, fontWeight: 600/);
 });
 
 test('registers the Settings card before the optional Remote bridge settles', async () => {
