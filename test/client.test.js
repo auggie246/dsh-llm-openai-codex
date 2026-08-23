@@ -30,6 +30,8 @@ test('browser factory assigns exports through its local module object', async ()
   const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /^\s*exports\.(?:apply|inject)\s*=/m);
   assert.match(source, /module\.exports\.(?:apply|inject)\s*=/);
+  assert.match(source, /'aria-expanded': open/);
+  assert.match(source, /onClick: \(\) => setOpen\(!open\)/);
 });
 
 test('registers the Settings card before the optional Remote bridge settles', async () => {
