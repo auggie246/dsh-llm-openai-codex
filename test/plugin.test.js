@@ -11,7 +11,7 @@ import { codexCliDocument, scratchAuthFile } from './helpers.js';
 const HOUR = 3600_000;
 
 /** A mock host context exposing the seam a host row consumes. */
-function mockCtx() {
+function mockCtx({ attachments } = {}) {
   const registrations = [];
   const logs = { info: [], warn: [] };
   const ctx = {
@@ -21,7 +21,7 @@ function mockCtx() {
         return () => {};
       },
     },
-    get: () => undefined,
+    get: (key) => key === 'attachments' ? attachments : undefined,
     settings: {
       register(_namespace, _schema, options) {
         let value = { ...options.base };
@@ -165,6 +165,52 @@ test('an unknown model is rejected before credentials resolve', async () => {
         }
       },
       /has no configured model/,
+    );
+  } finally {
+    await scratch.cleanup();
+  }
+});
+
+test('an image request sends a valid attachment policy', async () => {
+  const scratch = await scratchAuthFile(codexCliDocument({ expMs: Date.now() + HOUR, accountId: 'acct-live' }));
+  const attachments = {
+    async readImageRequest(_ref, policy) {
+      if (!Number.isSafeInteger(policy.maxPixels) || policy.maxPixels <= 0) {
+        throw new Error('Image request maxPixels must be a positive integer.');
+      }
+      if (!Number.isSafeInteger(policy.maxBytes) || policy.maxBytes <= 0) {
+        throw new Error('Image request maxBytes must be a positive integer.');
+      }
+      throw new Error('IMAGE_POLICY_ACCEPTED');
+    },
+  };
+  try {
+    const { ctx, registrations } = mockCtx({ attachments });
+    apply(ctx, { authPath: scratch.path });
+    const adapter = registrations[0].adapter;
+    const models = await adapter.listModels('openai-codex');
+    const model = models.find((item) => item.inputModalities?.includes('image'));
+    assert.ok(model, 'Codex catalog has an image-capable model');
+    const chunks = adapter.stream({
+      provider: 'openai-codex',
+      model: model.id,
+      messages: [{
+        id: 'message-1',
+        role: 'user',
+        source: { kind: 'user' },
+        content: [{
+          type: 'image',
+          attachment: { attachmentId: 'attachment-1', mediaType: 'image/png', bytes: 1, width: 1, height: 1 },
+        }],
+      }],
+    });
+    await assert.rejects(
+      async () => {
+        for await (const _ of chunks) {
+          // Image preparation fails before the provider network call.
+        }
+      },
+      /IMAGE_POLICY_ACCEPTED/,
     );
   } finally {
     await scratch.cleanup();
