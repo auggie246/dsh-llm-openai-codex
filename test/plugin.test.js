@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { apply, inject, name, resolveRoute } from '../lib/index.js';
+import { apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
 import { codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
@@ -87,6 +87,48 @@ test('resolveModel reports catalog capacities and reasoning efforts', async () =
   assert.equal(info.provider, 'openai-codex');
   assert.ok(info.context.contextWindow > 0);
   assert.ok(Array.isArray(info.reasoning.efforts), 'reasoning models advertise efforts');
+});
+
+test('the registered adapter satisfies the 0.1.1 prepareCall contract', async () => {
+  // dsh-llm 0.1.1 calls registration.adapter.prepareCall() before every turn;
+  // the rc.7 PiAiAdapter lacked it, so every ChatGPT model died with
+  // "registration.adapter.prepareCall is not a function" at turn start.
+  const { ctx, registrations } = mockCtx();
+  apply(ctx, {});
+  const adapter = registrations[0].adapter;
+  assert.equal(typeof adapter.prepareCall, 'function');
+  const catalog = await adapter.listModels('openai-codex');
+  const prepared = await adapter.prepareCall('openai-codex', catalog[0].id);
+  assert.equal(prepared.model.provider, 'openai-codex');
+  assert.equal(prepared.model.id, catalog[0].id);
+  assert.equal(typeof prepared.stream, 'function');
+});
+
+test('prepareCall freezes model resolution and rejects unknown models eagerly', async () => {
+  const { ctx, registrations } = mockCtx();
+  apply(ctx, {});
+  const adapter = registrations[0].adapter;
+  // modelInfo throws synchronously inside prepareCall, so wrap it for rejects.
+  await assert.rejects(async () => adapter.prepareCall('openai-codex', 'gpt-9000-imaginary'), /has no configured model/);
+});
+
+test('the adapter contract guard names a stale adapter at registration', () => {
+  // Stands in for the rc.7 PiAiAdapter: it satisfied the pre-0.1.1 seam but
+  // had no prepareCall, so the guard must list exactly that gap.
+  const staleAdapter = {
+    providerInfo() {},
+    providerRetryPolicy() {},
+    listModels() {},
+    resolveModel() {},
+    stream: async function* () {},
+  };
+  assert.throws(
+    () => assertAdapterContract(staleAdapter),
+    (error) => error.code === 'ADAPTER_CONTRACT_MISMATCH' && /missing prepareCall/.test(error.message) && /version line/.test(error.message),
+  );
+  const { ctx, registrations } = mockCtx();
+  apply(ctx, {});
+  assert.doesNotThrow(() => assertAdapterContract(registrations[0].adapter));
 });
 
 test('plugin identity matches the composition contract', () => {
