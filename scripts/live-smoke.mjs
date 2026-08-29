@@ -24,7 +24,8 @@ const { profiles, route, refreshMarginMs } = resolveRoute({});
 const authPath = defaultCodexAuthPath();
 console.log(`[smoke] route "${route}" serves: ${profiles.get(route).piProvider.getModels().map((m) => m.id).join(', ')}`);
 const auth = createCodexAuth({ path: authPath, refreshMarginMs });
-console.log(`[smoke] credentials: ${auth.path} (account ${(await auth.current()).accountId ?? 'unknown'})`);
+await auth.current();
+console.log('[smoke] credentials are ready.');
 
 const adapter = new PiAiAdapter({
   profiles: () => profiles,

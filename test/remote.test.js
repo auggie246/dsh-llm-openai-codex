@@ -24,7 +24,6 @@ test('remote codecs reject malformed input but accept a secret-free status', () 
     storage: 'dsh',
     source: 'DSH-managed credentials',
     connected: true,
-    accountId: 'acct-1',
     expiresAt: 123,
     pending: null,
     error: null,
@@ -32,10 +31,10 @@ test('remote codecs reject malformed input but accept a secret-free status', () 
     storage: 'dsh',
     source: 'DSH-managed credentials',
     connected: true,
-    accountId: 'acct-1',
     expiresAt: 123,
     pending: null,
     error: null,
   });
   assert.throws(() => status.parse({ access_token: 'never expose this' }));
+  assert.throws(() => status.parse({ storage: 'dsh', source: 'DSH-managed credentials', connected: true, accountId: 'never expose this', expiresAt: 123, pending: null, error: null }));
 });

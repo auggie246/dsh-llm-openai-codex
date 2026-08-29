@@ -34,6 +34,9 @@ test('browser factory assigns exports through its local module object', async ()
   assert.match(source, /onClick: \(\) => setOpen\(!open\)/);
   assert.match(source, /padding: '14px 16px'/);
   assert.match(source, /fontSize: 15, fontWeight: 600/);
+  assert.match(source, /window\.open\('', 'dsh-chatgpt-login'/);
+  assert.match(source, /popup\?\.location\.assign\(login\.url\)/);
+  assert.doesNotMatch(source, /snapshot\.accountId/);
 });
 
 test('registers the Settings card before the optional Remote bridge settles', async () => {

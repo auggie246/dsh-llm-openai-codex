@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
+import { Config, SettingsConfig, apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
 import { codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
@@ -129,6 +129,11 @@ test('the adapter contract guard names a stale adapter at registration', () => {
   const { ctx, registrations } = mockCtx();
   apply(ctx, {});
   assert.doesNotThrow(() => assertAdapterContract(registrations[0].adapter));
+});
+
+test('new installations default to DSH-managed credentials', () => {
+  assert.equal(Config.dict.storage.meta.default, 'dsh');
+  assert.equal(SettingsConfig.dict.storage.meta.default, 'dsh');
 });
 
 test('plugin identity matches the composition contract', () => {

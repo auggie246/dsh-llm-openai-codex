@@ -84,7 +84,7 @@ test('DSH-managed source starts disconnected, stores an interactive login, then 
     await controller.finishAuthorizationCode('code', 'verifier', BROWSER_REDIRECT_URI);
     const connected = await controller.status();
     assert.equal(connected.connected, true);
-    assert.equal(connected.accountId, 'acct-dsh');
+    assert.equal('accountId' in connected, false);
     const document = JSON.parse(await readFile(scratch.path, 'utf8'));
     assert.equal(parseAuthDocument(document, scratch.path).refresh, 'new-refresh');
     const disconnected = await controller.disconnect();
@@ -108,6 +108,7 @@ test('storage selection is host-persisted and shared Codex CLI credentials canno
   try {
     const selected = await controller.selectStorage('codex');
     assert.equal(selected.storage, 'codex');
+    await assert.rejects(() => controller.beginDeviceLogin(), /read-only/);
     await assert.rejects(() => controller.disconnect(), /owned by the Codex CLI/);
   } finally {
     await controller.dispose();
