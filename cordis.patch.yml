@@ -1,0 +1,8 @@
+# Bundle patch for dsh-llm-openai-codex: inserts its host row into the profile tree.
+# `dsh plugin --profile web add <this package>` appends this bundle to
+# dsh.profile.bundles automatically. Client roster entries come from the
+# dsh.client block in package.json — no row needed here.
+
+- insert:
+    - id: llm-openai-codex
+      name: "dsh-llm-openai-codex"
