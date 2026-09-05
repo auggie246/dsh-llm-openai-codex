@@ -68,5 +68,18 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Check whether npm already has this version
+        id: published
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if npm view --json "dsh-llm-openai-codex@$version" >/dev/null 2>&1; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
+        # The registry refuses a same-version republish, so a re-tagged
+        # release (e.g. a README-only fix) must skip instead of failing.
+        if: steps.published.outputs.present == 'false'
         run: npm publish
