@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-openai-codex",
   "description": "OpenAI Codex (ChatGPT Plus/Pro subscription) provider for DeepSeek Harness with DSH Web OAuth, device code, and shared Codex CLI credentials",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "type": "module",
   "license": "MIT",
   "main": "lib/index.js",
