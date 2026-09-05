@@ -1,12 +1,45 @@
 # dsh-llm-openai-codex
 
+[![npm version](https://img.shields.io/npm/v/dsh-llm-openai-codex.svg)](https://www.npmjs.com/package/dsh-llm-openai-codex)
+
 Use a ChatGPT Plus, Pro, Business, or Enterprise subscription with Codex access as a DeepSeek Harness model provider.
 
 This plugin adds the `openai-codex` route to DSH.
 It uses OpenAI Codex OAuth, not `OPENAI_API_KEY`.
 It uses pi-ai's Codex backend at `https://chatgpt.com/backend-api`.
 
-## Requirements
+## Table of Contents
+
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Security](#security)
+- [Maintainers](#maintainers)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Background
+
+The existing pi-ai adapter in DeepSeek Harness authenticates provider routes with API keys alone.
+pi-ai's OAuth-backed providers have no key to resolve, so its own validation refuses them.
+This plugin closes that gap for OpenAI's Codex backend: it reuses the pi-ai catalog's `openai-codex` provider and the generic pi-ai request machinery, and answers each request's credential with a ChatGPT OAuth access token.
+
+The token is loaded from either a DSH-managed credential file or the Codex CLI's shared auth file, and refreshed when it nears expiry.
+pi-ai derives the Codex request headers from that token, so the backend sees only a normal Codex client.
+The paired Web card starts a browser PKCE OAuth login or a device-code fallback, and exposes only secret-free connection status.
+
+- Access-token freshness uses the JWT `exp` value with a 60-second default margin.
+- Refresh requests use OpenAI's public Codex CLI OAuth client id.
+- Token updates use a temporary file, `rename`, and mode `0600`.
+- A shared-file refresh race reloads the credential file and retries once.
+- The route retries empty-body and transient provider errors twice by default; set `retryPolicy` to change this.
+- A login attempt waits 10 minutes at most and shows its remaining time; **Cancel this login** ends it at once.
+- The DSH Settings card receives connection state and OAuth actions only.
+
+## Install
+
+Requirements:
 
 - DeepSeek Harness `0.1.1-rc.2` or `0.1.2-rc.1` with a `web` profile.
 - Node.js `>=22.19.0`.
@@ -15,8 +48,6 @@ It uses pi-ai's Codex backend at `https://chatgpt.com/backend-api`.
 
 The plugin does not work with an API-key-only Codex CLI login.
 No `OPENAI_API_KEY` is required.
-
-## Install
 
 Replace `web` below if you use another DSH profile.
 The package must be a dependency of that profile.
@@ -68,7 +99,20 @@ Restart `dsh web`, or restart your DSH entry point.
 Then select an `openai-codex/<model>` model.
 Configure the connection in **Settings → Plugin Configuration → OpenAI Codex / ChatGPT subscription**.
 
-## Credentials and configuration
+### Uninstall
+
+First remove the `llm-openai-codex` `insert` row from `cordis.patch.yml`.
+Then remove the dependency from the same profile.
+
+```sh
+dsh plugin --profile web remove dsh-llm-openai-codex
+```
+
+Restart `dsh web`, or restart your DSH entry point.
+Removing the plugin does not delete shared Codex CLI credentials.
+Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longer need DSH-managed credentials.
+
+## Usage
 
 The Settings card supports two credential sources.
 
@@ -108,41 +152,6 @@ Every plugin configuration key is optional.
 `route` changes the provider prefix shown in model pickers.
 Changing `route` can conflict with another plugin that owns the same route.
 
-## Privacy and security
-
-The package contains no user credentials, API keys, or telemetry settings.
-`CODEX_CLIENT_ID` is OpenAI's public Codex CLI OAuth client identifier.
-It identifies the OAuth application and cannot authenticate a user.
-The plugin contacts OpenAI only for login, token refresh, and model requests.
-It does not send local credential paths or account identifiers to the Web card.
-It writes DSH-managed credentials with mode `0600`.
-The Settings Remote never sends access or refresh tokens to the browser.
-
-## Uninstall
-
-First remove the `llm-openai-codex` `insert` row from `cordis.patch.yml`.
-Then remove the dependency from the same profile.
-
-```sh
-dsh plugin --profile web remove dsh-llm-openai-codex
-```
-
-Restart `dsh web`, or restart your DSH entry point.
-Removing the plugin does not delete shared Codex CLI credentials.
-Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longer need DSH-managed credentials.
-
-## How it works
-
-- Access-token freshness uses the JWT `exp` value with a 60-second default margin.
-- Refresh requests use OpenAI's public Codex CLI OAuth client id.
-- Token updates use a temporary file, `rename`, and mode `0600`.
-- A shared-file refresh race reloads the credential file and retries once.
-- The route retries empty-body and transient provider errors twice by default; set `retryPolicy` to change this.
-- A login attempt waits 10 minutes at most and shows its remaining time; **Cancel this login** ends it at once.
-- pi-ai derives Codex request headers from the OAuth access token.
-- The DSH Settings card receives connection state and OAuth actions only.
-- Access tokens and refresh tokens never enter the browser Remote.
-
 ## Troubleshooting
 
 | Symptom | Meaning | Fix |
@@ -155,7 +164,25 @@ Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longe
 | Stuck on "Waiting for approval" | The browser closed before approval; the attempt waits 10 minutes | Use **Cancel this login** on the card, or wait out the countdown, then start again |
 | `Request failed` on a Codex turn | The backend sent an empty error response | The route retries twice by default. If it repeats every turn, check the connection in Settings |
 
-## Development
+## Security
+
+The package contains no user credentials, API keys, or telemetry settings.
+`CODEX_CLIENT_ID` is OpenAI's public Codex CLI OAuth client identifier.
+It identifies the OAuth application and cannot authenticate a user.
+The plugin contacts OpenAI only for login, token refresh, and model requests.
+It does not send local credential paths or account identifiers to the Web card.
+It writes DSH-managed credentials with mode `0600`.
+The Settings Remote never sends access or refresh tokens to the browser.
+
+## Maintainers
+
+[@auggie246](https://github.com/auggie246)
+
+## Contributing
+
+PRs accepted.
+
+Small note: If editing the README, please conform to the [standard-readme specification](https://github.com/RichardLitt/standard-readme).
 
 ```sh
 npm install
@@ -170,4 +197,4 @@ The package ships prebuilt JavaScript files from `lib/`.
 
 ## License
 
-[MIT](LICENSE)
+MIT © Augustine Teo
