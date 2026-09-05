@@ -11,7 +11,7 @@ import {
   exchangeAuthorizationCode,
 } from '../lib/oauth.js';
 import { CODEX_TOKEN_URL, parseAuthDocument } from '../lib/auth.js';
-import { accessToken, scratchAuthFile } from './helpers.js';
+import { accessToken, codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
 
@@ -207,4 +207,39 @@ test('cancelling with no login in progress is a safe no-op', async () => {
   const status = await controller.cancelLogin();
   assert.equal(status.pending, null);
   assert.equal(status.connected, false);
+});
+
+test('the controller delegates model status to the registry and fires it on credential changes', async () => {
+  const scratch = await scratchAuthFile(codexCliDocument({ expMs: Date.now() + HOUR, accountId: 'acct-live' }));
+  const refreshes = [];
+  const registry = {
+    snapshot: () => ({ count: 42, source: 'manifest', fetchedAt: 1, error: null }),
+    refresh: async () => {
+      refreshes.push('refresh');
+      return { count: 42, source: 'manifest', fetchedAt: 1, error: null, changed: false };
+    },
+  };
+  let credentialChanges = 0;
+  const controller = new CodexOAuthController({
+    storage: () => 'dsh',
+    setStorage: async () => {},
+    customAuthPath: undefined,
+    refreshMarginMs: 60_000,
+    registry,
+    onCredentialChange: () => { credentialChanges += 1; },
+    dshAuthPath: scratch.path,
+  });
+  try {
+    assert.deepEqual(await controller.modelsStatus(), { count: 42, source: 'manifest', fetchedAt: 1, error: null });
+    await controller.selectStorage('codex');
+    assert.equal(credentialChanges, 1, 'a source switch re-runs discovery');
+    await controller.selectStorage('dsh');
+    assert.equal(credentialChanges, 2);
+    // A registry-less controller answers a catalog snapshot instead of failing.
+    const bare = new CodexOAuthController({ storage: () => 'dsh', setStorage: async () => {}, customAuthPath: undefined, refreshMarginMs: 60_000 });
+    assert.deepEqual(await bare.modelsStatus(), { count: 0, source: 'catalog', fetchedAt: null, error: null });
+    assert.equal((await bare.refreshModels()).changed, false);
+  } finally {
+    await scratch.cleanup();
+  }
 });

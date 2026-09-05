@@ -34,8 +34,9 @@ The paired Web card starts a browser PKCE OAuth login or a device-code fallback,
 - Token updates use a temporary file, `rename`, and mode `0600`.
 - A shared-file refresh race reloads the credential file and retries once.
 - The route retries empty-body and transient provider errors twice by default; set `retryPolicy` to change this.
+- Model discovery fetches the backend's live model manifest, so a newly released OpenAI model reaches the picker without a plugin or pi-ai upgrade.
 - A login attempt waits 10 minutes at most and shows its remaining time; **Cancel this login** ends it at once.
-- The DSH Settings card receives connection state and OAuth actions only.
+- The DSH Settings card receives connection state, OAuth actions, and model-discovery status only.
 
 ## Install
 
@@ -144,8 +145,54 @@ Every plugin configuration key is optional.
         refreshMarginMs: 60000
         streamIdleTimeoutMs: 300000
         reasoning: medium
+        modelDiscovery: auto          # fetch the backend's live model manifest
+        modelRefreshMs: 21600000      # re-fetch every 6 hours; 0 disables the timer
+        modelCachePath: <DSH home>/cache/openai-codex-models.json
+        modelOverrides: {}
         models: [gpt-5.4, gpt-5.4-mini]
         retryPolicy: { mode: normal, maxRetries: 2 }
+```
+
+### Model discovery
+
+With `modelDiscovery: auto` (the default), the route fetches the same live
+model manifest the Codex CLI and ChatGPT web use, authenticated with your
+ChatGPT token. The manifest answers for your account, so a model OpenAI
+releases reaches the DSH picker without upgrading this plugin, pi-ai, or DSH.
+
+- A model the installed catalog knows keeps its catalog entry — costs,
+  context window, and thinking levels stay the hand-audited values.
+- A model the catalog lacks is synthesized: name and context window from the
+  manifest, wire protocol and modalities from its closest catalog sibling,
+  reasoning levels from the manifest's own effort list.
+- A model the backend hides for your account (`visibility: hide`) leaves the
+  picker.
+- The last manifest persists at `modelCachePath`, so a restart serves the
+  discovered list before the first fetch completes. Every failure keeps the
+  previous list — the picker degrades to the installed catalog, never to
+  empty.
+
+The manifest refreshes at startup, after each login or credential-source
+switch, every `modelRefreshMs`, and whenever you press **Refresh model list**
+on the Settings card. A changed model set re-announces the route, so open
+model pickers re-read without a page reload.
+
+`models` filters that merged list. A named id nothing serves yet is warned
+about in the host log, and appears once the backend's manifest includes it —
+discovery makes an id valid before the installed catalog knows it.
+
+`modelOverrides` corrects one resolved model per key without a plugin
+upgrade. Recognized fields: `name`, `contextWindow`, `maxTokens`, `input`,
+`compat`, and `reasoningEfforts` — a dict whose keys are pi-ai thinking
+levels (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`) and whose
+values are the wire spellings to send (`false` marks a level unsupported;
+`false` instead of a dict declares a non-reasoning model). For example:
+
+```yaml
+        modelOverrides:
+          gpt-9000-imaginary:
+            contextWindow: 400000
+            reasoningEfforts: { low: low, medium: medium, high: high, xhigh: false }
 ```
 
 `authPath` pins the credential file and disables the Settings source selector.
@@ -161,6 +208,8 @@ Changing `route` can conflict with another plugin that owns the same route.
 | `Not connected` | The selected source has no ChatGPT OAuth login | Connect in Settings or select the Codex CLI source |
 | API-key login message | The Codex CLI file has an API-key login | Log in to Codex with ChatGPT or use DSH-managed credentials |
 | Refresh token rejected | The token expired or another client rotated it | Reconnect in Settings |
+| A newly released OpenAI model is missing | The picker shows the last manifest, not the newest | Press **Refresh model list** in Settings; check `modelDiscovery` is not `off` |
+| `config.models names …` warning | A filtered id is not in the catalog or the manifest yet | Keep the id and wait for discovery, or remove it |
 | Stuck on "Waiting for approval" | The browser closed before approval; the attempt waits 10 minutes | Use **Cancel this login** on the card, or wait out the countdown, then start again |
 | `Request failed` on a Codex turn | The backend sent an empty error response | The route retries twice by default. If it repeats every turn, check the connection in Settings |
 

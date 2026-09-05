@@ -100,4 +100,10 @@ test('a pending login shows a countdown, a reopen link, and a cancel action', as
   assert.match(source, /Cancel this login/);
   assert.match(source, /remote\.cancelLogin\(\)/);
   assert.match(source, /'beginDeviceLogin', 'cancelLogin', 'disconnect'/);
+  // The model row: a manual refresh action, the two new facade methods, and
+  // the status line fed by the modelsStatus poll.
+  assert.match(source, /Refresh model list/);
+  assert.match(source, /remote\.refreshModels\(\)/);
+  assert.match(source, /call\('modelsStatus', \[\], result\(modelsStatus\)\)/);
+  assert.match(source, /call\('refreshModels', \[\], result\(modelsStatus\)\)/);
 });
