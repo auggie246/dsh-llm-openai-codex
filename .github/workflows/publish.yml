@@ -1,0 +1,72 @@
+# Publishes the OpenAI Codex provider (dsh-llm-openai-codex) to npm when a
+# GitHub Release is published. No NPM_TOKEN secret is used: authentication is
+# npm trusted publishing (OIDC).
+#
+# This file matches the trusted publisher registered on npmjs.com for the
+# dsh-llm-openai-codex package. Every value below is case-sensitive and must
+# stay in sync with that registration:
+#   Organization or user: auggie246
+#   Repository:           dsh-llm-openai-codex
+#   Workflow filename:    publish.yml   (this file, filename only, no path)
+#   Environment name:     (blank — do not add an `environment:` key to the job)
+#
+# Requirements per https://docs.npmjs.com/trusted-publishers/ :
+#   - GitHub-hosted runner (self-hosted runners are not supported)
+#   - Node >= 22.14.0 and npm CLI >= 11.5.1 (npm is upgraded below)
+#   - permissions: id-token: write (OIDC) and contents: read
+# Provenance attestations are generated automatically for this public package;
+# do not set NODE_AUTH_TOKEN, or npm uses the legacy token path instead.
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the release tag
+        uses: actions/checkout@v6
+        with:
+          # On `release` events GITHUB_SHA points at the default branch head,
+          # not at the tag. Check out the tagged tree so we publish exactly
+          # what the release points at.
+          ref: ${{ github.event.release.tag_name }}
+          # Nothing in this workflow pushes to the repo; drop the checkout
+          # credentials so installed packages cannot reach the repository.
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          # npm guidance for release builds: never cache in release builds.
+          package-manager-cache: false
+
+      - name: Upgrade npm to the trusted-publishing floor
+        run: npm install -g npm@^11.5.1
+
+      - name: Verify release tag matches package.json version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          tag="${{ github.event.release.tag_name }}"
+          if [ "v$version" != "$tag" ]; then
+            echo "::error::Release tag $tag does not match package.json version v$version. Bump the version or fix the tag, then publish the release again."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Publish to npm
+        run: npm publish
