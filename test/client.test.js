@@ -89,3 +89,15 @@ test('OAuth facade resolves its dynamically mounted Remote through ctx.get()', a
   });
   assert.deepEqual(await card.inject().remote.status(), { ok: true, value: { connected: true } });
 });
+
+test('a pending login shows a countdown, a reopen link, and a cancel action', async () => {
+  const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
+  // The pending status must carry the host's authorization URL: after a page
+  // reload the card's own browserUrl state is gone, and without this link a
+  // closed browser left the card stuck with no escape hatch.
+  assert.match(source, /pending\.url \?\? browserUrl/);
+  assert.match(source, /pendingCountdown\(pending\.expiresAt\)/);
+  assert.match(source, /Cancel this login/);
+  assert.match(source, /remote\.cancelLogin\(\)/);
+  assert.match(source, /'beginDeviceLogin', 'cancelLogin', 'disconnect'/);
+});

@@ -137,6 +137,8 @@ Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longe
 - Refresh requests use OpenAI's public Codex CLI OAuth client id.
 - Token updates use a temporary file, `rename`, and mode `0600`.
 - A shared-file refresh race reloads the credential file and retries once.
+- The route retries empty-body and transient provider errors twice by default; set `retryPolicy` to change this.
+- A login attempt waits 10 minutes at most and shows its remaining time; **Cancel this login** ends it at once.
 - pi-ai derives Codex request headers from the OAuth access token.
 - The DSH Settings card receives connection state and OAuth actions only.
 - Access tokens and refresh tokens never enter the browser Remote.
@@ -150,6 +152,8 @@ Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longe
 | `Not connected` | The selected source has no ChatGPT OAuth login | Connect in Settings or select the Codex CLI source |
 | API-key login message | The Codex CLI file has an API-key login | Log in to Codex with ChatGPT or use DSH-managed credentials |
 | Refresh token rejected | The token expired or another client rotated it | Reconnect in Settings |
+| Stuck on "Waiting for approval" | The browser closed before approval; the attempt waits 10 minutes | Use **Cancel this login** on the card, or wait out the countdown, then start again |
+| `Request failed` on a Codex turn | The backend sent an empty error response | The route retries twice by default. If it repeats every turn, check the connection in Settings |
 
 ## Development
 

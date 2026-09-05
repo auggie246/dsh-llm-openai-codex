@@ -52,6 +52,31 @@ test('resolving the default route adopts the pi-ai openai-codex catalog', () => 
   assert.equal(profile.retryPolicy.mode, 'normal');
 });
 
+test('the default retry policy retries transient provider errors, including the PI_AI_ERROR catch-all', () => {
+  // pi-ai raises the codex backend's empty-body error responses as the
+  // unclassified "PI_AI_ERROR" (no status text over HTTP/2), and its own
+  // request retries are pinned to zero — without this policy one transient
+  // response killed the whole turn.
+  const { profiles } = resolveRoute({});
+  const policy = profiles.get('openai-codex').retryPolicy;
+  assert.equal(policy.mode, 'normal');
+  assert.equal(policy.maxRetries, 2);
+  for (const code of ['PI_AI_ERROR', 'EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT']) {
+    assert.ok(policy.retryableCodes.includes(code), `retries ${code}`);
+  }
+  for (const code of ['AUTH', 'INVALID_REQUEST']) {
+    assert.equal(policy.retryableCodes.includes(code), false, `${code} stays non-retryable`);
+  }
+});
+
+test('an explicit retryPolicy replaces the route default verbatim', () => {
+  const { profiles } = resolveRoute({ retryPolicy: { mode: 'normal', maxRetries: 0 } });
+  const policy = profiles.get('openai-codex').retryPolicy;
+  assert.equal(policy.maxRetries, 0);
+  assert.deepEqual([...policy.retryableCodes], ['EMPTY_RESPONSE', 'RATE_LIMIT', 'SERVER', 'TIMEOUT', 'TRANSPORT']);
+  assert.throws(() => resolveRoute({ retryPolicy: { mode: 'sometimes' } }), /mode must be/);
+});
+
 test('config.models narrows the catalog and names unknown ids', () => {
   const { profiles } = resolveRoute({ models: ['gpt-5.4-mini'] });
   assert.deepEqual(

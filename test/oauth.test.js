@@ -144,3 +144,67 @@ test('device code begins with OpenAI device endpoint and exposes code without an
     await scratch.cleanup();
   }
 });
+
+test('a browser login exposes its authorization URL in pending status and cancels cleanly', async () => {
+  // callbackPort 0 binds an ephemeral port: no real listener on 1455 in tests.
+  const controller = new CodexOAuthController({
+    storage: () => 'dsh',
+    setStorage: async () => {},
+    refreshMarginMs: 60_000,
+    dshAuthPath: '/unused/dsh/auth.json',
+    codexAuthPath: '/unused/codex/auth.json',
+    callbackPort: 0,
+  });
+  try {
+    const { url } = await controller.beginBrowserLogin();
+    const pending = (await controller.status()).pending;
+    assert.equal(pending.kind, 'browser');
+    assert.equal(pending.url, url);
+    assert.match(pending.url, /auth\.openai\.com\/oauth\/authorize/);
+    assert.ok(Number.isFinite(pending.expiresAt));
+    const after = await controller.cancelLogin();
+    assert.equal(after.pending, null);
+    assert.equal(after.error, 'Not connected');
+    // Cancelling releases the callback server: a new login starts immediately.
+    const again = await controller.beginBrowserLogin();
+    assert.notEqual(new URL(again.url).searchParams.get('state'), new URL(url).searchParams.get('state'));
+  } finally {
+    await controller.dispose();
+  }
+});
+
+test('a device login cancels its polling loop cleanly', async () => {
+  const controller = new CodexOAuthController({
+    storage: () => 'dsh',
+    setStorage: async () => {},
+    refreshMarginMs: 60_000,
+    dshAuthPath: '/unused/dsh/auth.json',
+    fetchImpl: async (url) => {
+      if (url === CODEX_DEVICE_USER_CODE_URL) {
+        return { ok: true, status: 200, json: async () => ({ device_auth_id: 'device-id', user_code: 'ABCD-EFGH', interval: 60 }) };
+      }
+      throw new Error(`Unexpected URL ${url}`);
+    },
+  });
+  try {
+    await controller.beginDeviceLogin();
+    const after = await controller.cancelLogin();
+    assert.equal(after.pending, null);
+    assert.equal(after.error, 'Not connected');
+  } finally {
+    await controller.dispose();
+  }
+});
+
+test('cancelling with no login in progress is a safe no-op', async () => {
+  const controller = new CodexOAuthController({
+    storage: () => 'dsh',
+    setStorage: async () => {},
+    refreshMarginMs: 60_000,
+    dshAuthPath: '/unused/dsh/auth.json',
+    codexAuthPath: '/unused/codex/auth.json',
+  });
+  const status = await controller.cancelLogin();
+  assert.equal(status.pending, null);
+  assert.equal(status.connected, false);
+});
