@@ -5,7 +5,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Config, SettingsConfig, apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
+import { Config, SETTINGS_NS, SettingsConfig, apply, assertAdapterContract, inject, name, resolveRoute, settingsNamespaceOf } from '../lib/index.js';
 import { codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
@@ -159,6 +159,40 @@ test('the adapter contract guard names a stale adapter at registration', () => {
 test('new installations default to DSH-managed credentials', () => {
   assert.equal(Config.dict.storage.meta.default, 'dsh');
   assert.equal(SettingsConfig.dict.storage.meta.default, 'dsh');
+});
+
+test('the registered adapter answers the 0.1.2 imageRequestPricing probe', () => {
+  // dsh-llm 0.1.2 calls adapter.imageRequestPricing() unguarded from the token
+  // meter; the method only ships with the 0.1.2 adapter base class, so apply()
+  // attaches the same "route declares no pricing" default when the installed
+  // adapter predates it. Without this, a mixed-version tree dies on every
+  // priced request with "adapter.imageRequestPricing is not a function".
+  const { ctx, registrations } = mockCtx();
+  apply(ctx, {});
+  const adapter = registrations[0].adapter;
+  assert.equal(typeof adapter.imageRequestPricing, 'function');
+  assert.equal(adapter.imageRequestPricing('openai-codex', 'gpt-5.4'), undefined);
+});
+
+test('the settings namespace resolves identically on both harness lines', () => {
+  // Harness 0.1.2-rc.1 removed the settingsNamespace helper this package used
+  // to import by name — a missing ESM named export fails at link time and
+  // would take the whole host row down. The namespace import plus identity
+  // fallback keeps the same namespace string on 0.1.1 (real validator) and
+  // 0.1.2+ (register validates internally).
+  assert.equal(SETTINGS_NS, 'llm-openai-codex');
+  assert.equal(settingsNamespaceOf('llm-openai-codex'), 'llm-openai-codex');
+  // 0.1.1 still runs its own validator, so an invalid name throws there;
+  // the 0.1.2+ fallback is an identity and leaves validation to
+  // settings.register. Both outcomes are the documented contract.
+  const invalid = (() => {
+    try {
+      return settingsNamespaceOf('not a namespace');
+    } catch {
+      return undefined;
+    }
+  })();
+  assert.ok(invalid === undefined || typeof invalid === 'string');
 });
 
 test('plugin identity matches the composition contract', () => {

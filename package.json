@@ -1,7 +1,7 @@
 {
   "name": "dsh-llm-openai-codex",
   "description": "OpenAI Codex (ChatGPT Plus/Pro subscription) provider for DeepSeek Harness with DSH Web OAuth, device code, and shared Codex CLI credentials",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "license": "MIT",
   "main": "lib/index.js",
@@ -43,18 +43,18 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-llm-pi-ai": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-timeout": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-settings": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-api-gateway": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-llm": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm-pi-ai": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-timeout": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-settings": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-home-paths": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-api-gateway": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2 || ^0.1.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "^0.1.1-rc.2 || ^0.1.2-rc.1",
     "react": "^18.2.0",
     "@deepseek-ai/schemastery": "^3.18.1",
-    "@earendil-works/pi-ai": "^0.82.1"
+    "@earendil-works/pi-ai": "^0.82.1 || ^0.84.2"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

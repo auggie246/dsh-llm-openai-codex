@@ -8,7 +8,7 @@ It uses pi-ai's Codex backend at `https://chatgpt.com/backend-api`.
 
 ## Requirements
 
-- DeepSeek Harness with a `web` profile.
+- DeepSeek Harness `0.1.1-rc.2` or `0.1.2-rc.1` with a `web` profile.
 - Node.js `>=22.19.0`.
 - A ChatGPT subscription that includes Codex access.
 - Either DSH-managed credentials or a ChatGPT Codex CLI login.
