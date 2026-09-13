@@ -200,6 +200,23 @@ test('the registered adapter answers the 0.1.2 imageRequestPricing probe', () =>
   assert.equal(adapter.imageRequestPricing('openai-codex', 'gpt-5.4'), undefined);
 });
 
+test('the built profile carries the 0.1.5 modelErrors diagnostics map', () => {
+  // dsh-llm-pi-ai 0.1.5 added a required per-model diagnostics map to the
+  // resolved profile and reads profile.modelErrors.get(model) unguarded in
+  // modelOf — which runs on every resolveModel, prepareCall, and stream. This
+  // package builds the profile directly, so it must carry the same empty map
+  // the settings resolver produces; without it the first turn dies with
+  // "Cannot read properties of undefined (reading 'get')". The 0.1.1 and
+  // 0.1.2 adapters never read the member, so carrying it serves all trains.
+  const { profiles } = resolveRoute({});
+  const profile = profiles.get('openai-codex');
+  assert.ok(profile.modelErrors instanceof Map, 'modelErrors is a Map');
+  assert.equal(profile.modelErrors.size, 0, 'the route declares no model failures');
+  // The discovery-driven rebuild must keep the member too.
+  const discovered = resolveRoute({}, { getModels: () => [] });
+  assert.ok(discovered.profiles.get(discovered.route).modelErrors instanceof Map);
+});
+
 test('the settings namespace resolves identically on both harness lines', () => {
   // Harness 0.1.2-rc.1 removed the settingsNamespace helper this package used
   // to import by name — a missing ESM named export fails at link time and

@@ -42,7 +42,7 @@ The paired Web card starts a browser PKCE OAuth login or a device-code fallback,
 
 Requirements:
 
-- DeepSeek Harness `0.1.1-rc.2` or `0.1.2-rc.1` with a `web` profile.
+- DeepSeek Harness `0.1.1-rc.2`, `0.1.2-rc.1`, or `0.1.5-rc.1` and newer `0.1.5-rc.x` with a `web` profile.
 - Node.js `>=22.19.0`.
 - A ChatGPT subscription that includes Codex access.
 - Either DSH-managed credentials or a ChatGPT Codex CLI login.
