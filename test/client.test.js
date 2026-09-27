@@ -50,16 +50,21 @@ test('registers the Settings card before the optional Remote bridge settles', as
   let releaseMount;
   const mount = new Promise((resolve) => { releaseMount = resolve; });
   let card;
+  let slotName;
   const started = client.apply({
     effect(callback) { return callback(); },
     remote: { $mount: () => mount },
     slots: {
-      inject(_name, callback) { callback(); },
+      inject(name, callback) { slotName = name; callback(); },
       register(options) { card = options; return () => {}; },
     },
   });
   await Promise.resolve();
-  assert.equal(card?.key, 'llm-openai-codex');
+  // Harness 0.1.7 configures a bundle row on the Plugins page, whose
+  // `plugins.row.config` slot is keyed `<package name>#<row id>`.
+  assert.equal(slotName, 'plugins.row.config');
+  assert.equal(card?.name, 'plugins.row.config');
+  assert.equal(card?.key, 'dsh-llm-openai-codex#llm-openai-codex');
   releaseMount(async () => {});
   await started;
 });
@@ -104,6 +109,8 @@ test('a pending login shows a countdown, a reopen link, and a cancel action', as
   // the status line fed by the modelsStatus poll.
   assert.match(source, /Refresh model list/);
   assert.match(source, /remote\.refreshModels\(\)/);
-  assert.match(source, /call\('modelsStatus', \[\], result\(modelsStatus\)\)/);
-  assert.match(source, /call\('refreshModels', \[\], result\(modelsStatus\)\)/);
+  assert.match(source, /call\('modelsStatus', \[\], modelsStatus\)/);
+  assert.match(source, /call\('refreshModels', \[\], modelsStatus\)/);
+  // 0.1.7 rejects any strict codec without a create() factory, at both ends.
+  assert.match(source, /create: \(\) => schema/);
 });

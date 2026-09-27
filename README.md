@@ -36,13 +36,13 @@ The paired Web card starts a browser PKCE OAuth login or a device-code fallback,
 - The route retries empty-body and transient provider errors twice by default; set `retryPolicy` to change this.
 - Model discovery fetches the backend's live model manifest, so a newly released OpenAI model reaches the picker without a plugin or pi-ai upgrade.
 - A login attempt waits 10 minutes at most and shows its remaining time; **Cancel this login** ends it at once.
-- The DSH Settings card receives connection state, OAuth actions, and model-discovery status only.
+- The DSH configuration page receives connection state, OAuth actions, and model-discovery status only.
 
 ## Install
 
 Requirements:
 
-- DeepSeek Harness `0.1.1-rc.2`, `0.1.2-rc.1`, or `0.1.5-rc.1` and newer `0.1.5-rc.x` with a `web` profile.
+- DeepSeek Harness `0.1.7-rc.2` with a `web` profile. Older harness lines — `0.1.1-rc.2`, `0.1.2-rc.1`, and `0.1.5-rc.x` — are no longer supported: harness 0.1.7 replaced the settings service and the Typert codec contract this plugin depends on.
 - Node.js `>=22.19.0`.
 - A ChatGPT subscription that includes Codex access.
 - Either DSH-managed credentials or a ChatGPT Codex CLI login.
@@ -98,7 +98,7 @@ Add this exact block to `~/.dsh/profiles/web/cordis.patch.yml`.
 
 Restart `dsh web`, or restart your DSH entry point.
 Then select an `openai-codex/<model>` model.
-Configure the connection in **Settings → Plugin Configuration → OpenAI Codex / ChatGPT subscription**.
+Configure the connection on the sidebar's **Plugins → dsh-llm-openai-codex → llm-openai-codex → Configure** page.
 
 ### Uninstall
 
@@ -115,7 +115,7 @@ Delete `$DSH_HOME/credentials/openai-codex.json` yourself only when you no longe
 
 ## Usage
 
-The Settings card supports two credential sources.
+The configuration page supports two credential sources.
 
 - **DSH-managed** stores credentials at `$DSH_HOME/credentials/openai-codex.json`.
 - **Shared Codex CLI** reads `~/.codex/auth.json` or `$CODEX_HOME/auth.json`.
@@ -140,7 +140,7 @@ Every plugin configuration key is optional.
       config:
         route: openai-codex
         displayName: OpenAI Codex
-        storage: dsh
+        storage: dsh                  # the one key the configuration page writes
         # authPath: ~/.codex/auth.json
         refreshMarginMs: 60000
         streamIdleTimeoutMs: 300000
@@ -153,8 +153,14 @@ Every plugin configuration key is optional.
         retryPolicy: { mode: normal, maxRetries: 2 }
 ```
 
-### Model discovery
+`storage` is the only key the Web writes. Harness 0.1.7 dropped the separate
+`settings.yaml` document: a plugin row's `config` block *is* its configuration,
+and only a key the schema declares live-editable can be changed from the page.
+Choosing the other credential source there records `storage` in the profile
+patch, and the next credential read uses it — no restart. Every other key needs
+an edit to `cordis.patch.yml` and a restart.
 
+### Model discovery
 With `modelDiscovery: auto` (the default), the route fetches the same live
 model manifest the Codex CLI and ChatGPT web use, authenticated with your
 ChatGPT token. The manifest answers for your account, so a model OpenAI
@@ -174,7 +180,7 @@ releases reaches the DSH picker without upgrading this plugin, pi-ai, or DSH.
 
 The manifest refreshes at startup, after each login or credential-source
 switch, every `modelRefreshMs`, and whenever you press **Refresh model list**
-on the Settings card. A changed model set re-announces the route, so open
+on the configuration page. A changed model set re-announces the route, so open
 model pickers re-read without a page reload.
 
 `models` filters that merged list. A named id nothing serves yet is warned
@@ -195,7 +201,7 @@ values are the wire spellings to send (`false` marks a level unsupported;
             reasoningEfforts: { low: low, medium: medium, high: high, xhigh: false }
 ```
 
-`authPath` pins the credential file and disables the Settings source selector.
+`authPath` pins the credential file and disables the credential-source selector on the configuration page.
 `route` changes the provider prefix shown in model pickers.
 Changing `route` can conflict with another plugin that owns the same route.
 
@@ -205,13 +211,13 @@ Changing `route` can conflict with another plugin that owns the same route.
 |---|---|---|
 | pnpm blocks `prepare` | Git installation needs an approved build script | Add the exact pnpm key under `allowBuilds`, then retry |
 | Callback port `1455` is busy | Another OAuth flow owns the redirect port | Use **Use device code** |
-| `Not connected` | The selected source has no ChatGPT OAuth login | Connect in Settings or select the Codex CLI source |
+| `Not connected` | The selected source has no ChatGPT OAuth login | Connect on the configuration page or select the Codex CLI source |
 | API-key login message | The Codex CLI file has an API-key login | Log in to Codex with ChatGPT or use DSH-managed credentials |
-| Refresh token rejected | The token expired or another client rotated it | Reconnect in Settings |
-| A newly released OpenAI model is missing | The picker shows the last manifest, not the newest | Press **Refresh model list** in Settings; check `modelDiscovery` is not `off` |
+| Refresh token rejected | The token expired or another client rotated it | Reconnect on the configuration page |
+| A newly released OpenAI model is missing | The picker shows the last manifest, not the newest | Press **Refresh model list** on the configuration page; check `modelDiscovery` is not `off` |
 | `config.models names …` warning | A filtered id is not in the catalog or the manifest yet | Keep the id and wait for discovery, or remove it |
 | Stuck on "Waiting for approval" | The browser closed before approval; the attempt waits 10 minutes | Use **Cancel this login** on the card, or wait out the countdown, then start again |
-| `Request failed` on a Codex turn | The backend sent an empty error response | The route retries twice by default. If it repeats every turn, check the connection in Settings |
+| `Request failed` on a Codex turn | The backend sent an empty error response | The route retries twice by default. If it repeats every turn, check the connection on the configuration page |
 
 ## Security
 
@@ -221,7 +227,7 @@ It identifies the OAuth application and cannot authenticate a user.
 The plugin contacts OpenAI only for login, token refresh, and model requests.
 It does not send local credential paths or account identifiers to the Web card.
 It writes DSH-managed credentials with mode `0600`.
-The Settings Remote never sends access or refresh tokens to the browser.
+The configuration page Remote never sends access or refresh tokens to the browser.
 
 ## Maintainers
 

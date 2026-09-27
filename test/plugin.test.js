@@ -8,17 +8,22 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Config, SETTINGS_NS, SettingsConfig, apply, assertAdapterContract, inject, name, resolveRoute, settingsNamespaceOf } from '../lib/index.js';
+import { Config, apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
 import { codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
 
 /** A mock host context exposing the seam a host row consumes. */
-function mockCtx({ attachments } = {}) {
+function mockCtx({ attachments, typert = false } = {}) {
   const registrations = [];
   const logs = { info: [], warn: [] };
+  const settingsWrites = [];
+  const services = {};
   let adapterUpdates = 0;
   const ctx = {
+    // The profile entry this row mounts as: its id is the settings namespace
+    // the credential-source write is addressed to.
+    fiber: { entry: { options: { id: 'llm-openai-codex' } } },
     llm: {
       registerAdapter(routes, adapter) {
         registrations.push({ routes, adapter });
@@ -29,23 +34,23 @@ function mockCtx({ attachments } = {}) {
       },
     },
     get: (key) => key === 'attachments' ? attachments : undefined,
+    // Harness 0.1.7's SettingsForms: the entry's Config is its settings
+    // section, so the only write seam is update(ns, patch).
     settings: {
-      register(_namespace, _schema, options) {
-        let value = { ...options.base };
-        return {
-          get: () => value,
-          watch: () => () => {},
-          update: async (patch) => { value = { ...value, ...patch }; },
-        };
+      configure: () => () => {},
+      update: async (ns, patch) => {
+        settingsWrites.push({ ns, patch });
       },
     },
+    reflect: { provide(key, value) { services[key] = value; } },
     effect: (callback) => callback(),
     logger: {
       info: (msg) => logs.info.push(msg),
       warn: (msg) => logs.warn.push(msg),
     },
   };
-  return { ctx, registrations, logs, adapterUpdates: () => adapterUpdates };
+  if (typert) ctx.typert = {};
+  return { ctx, registrations, logs, services, settingsWrites, adapterUpdates: () => adapterUpdates };
 }
 
 test('resolving the default route adopts the pi-ai openai-codex catalog', () => {
@@ -140,9 +145,9 @@ test('resolveModel reports catalog capacities and reasoning efforts', async () =
   assert.ok(Array.isArray(info.reasoning.efforts), 'reasoning models advertise efforts');
 });
 
-test('the registered adapter satisfies the 0.1.1 prepareCall contract', async () => {
-  // dsh-llm 0.1.1 calls registration.adapter.prepareCall() before every turn;
-  // the rc.7 PiAiAdapter lacked it, so every ChatGPT model died with
+test('the registered adapter satisfies the prepareCall contract', async () => {
+  // The harness calls registration.adapter.prepareCall() before every turn; an
+  // adapter without it kills every ChatGPT model with
   // "registration.adapter.prepareCall is not a function" at turn start.
   const { ctx, registrations } = mockCtx();
   apply(ctx, { modelDiscovery: 'off' });
@@ -184,15 +189,52 @@ test('the adapter contract guard names a stale adapter at registration', () => {
 
 test('new installations default to DSH-managed credentials', () => {
   assert.equal(Config.dict.storage.meta.default, 'dsh');
-  assert.equal(SettingsConfig.dict.storage.meta.default, 'dsh');
 });
 
-test('the registered adapter answers the 0.1.2 imageRequestPricing probe', () => {
-  // dsh-llm 0.1.2 calls adapter.imageRequestPricing() unguarded from the token
-  // meter; the method only ships with the 0.1.2 adapter base class, so apply()
-  // attaches the same "route declares no pricing" default when the installed
-  // adapter predates it. Without this, a mixed-version tree dies on every
-  // priced request with "adapter.imageRequestPricing is not a function".
+test('the credential source is the one live-editable config field', () => {
+  // Harness 0.1.7's settings layer writes profile configuration, and a field is
+  // editable only when the schema marks it `.volatile()`. `storage` is the one
+  // field the Web card changes while the route serves; without the marker the
+  // card's switch dies with `Config field "storage" is not volatile`.
+  assert.equal(Config.dict.storage.meta.volatile, true);
+  for (const [key, field] of Object.entries(Config.dict)) {
+    if (key === 'storage') continue;
+    assert.equal(field.meta.volatile, undefined, `${key} stays ordinary configuration`);
+  }
+});
+
+test('the card persists the credential source through the settings layer', async () => {
+  // 0.1.7 removed settings namespaces: a write is addressed to the profile
+  // entry's id, so the entry id — not a package-chosen namespace — must reach
+  // settings.update, or the write fails with `No configurable plugin entry`.
+  const { ctx, services, settingsWrites } = mockCtx({ typert: true });
+  apply(ctx, { modelDiscovery: 'off' });
+  const gateway = services.codexAuth;
+  assert.ok(gateway, 'the typert gateway mounts when typert is present');
+  await gateway.selectStorage('codex');
+  assert.deepEqual(settingsWrites, [{ ns: 'llm-openai-codex', patch: { storage: 'codex' } }]);
+});
+
+test('the card is the entry own configuration page', () => {
+  // Without this the settings layer also auto-generates a form for the same
+  // volatile field, giving the one switch two competing surfaces.
+  const configured = [];
+  const { ctx } = mockCtx();
+  ctx.settings.configure = (presentation, owner) => {
+    configured.push({ presentation, owner });
+    return () => {};
+  };
+  apply(ctx, { modelDiscovery: 'off' });
+  assert.equal(configured.length, 1);
+  assert.equal(configured[0].presentation.auto, false);
+  assert.equal(configured[0].owner, ctx.fiber);
+});
+
+test('the registered adapter answers the token meter imageRequestPricing probe', () => {
+  // dsh-llm calls adapter.imageRequestPricing() unguarded from the token meter.
+  // The adapter base class answers "this route declares no pricing", so the
+  // seam holds without this package supplying anything; the assertion is here
+  // because a base-class change would surface as a priced-request crash.
   const { ctx, registrations } = mockCtx();
   apply(ctx, { modelDiscovery: 'off' });
   const adapter = registrations[0].adapter;
@@ -200,14 +242,13 @@ test('the registered adapter answers the 0.1.2 imageRequestPricing probe', () =>
   assert.equal(adapter.imageRequestPricing('openai-codex', 'gpt-5.4'), undefined);
 });
 
-test('the built profile carries the 0.1.5 modelErrors diagnostics map', () => {
-  // dsh-llm-pi-ai 0.1.5 added a required per-model diagnostics map to the
-  // resolved profile and reads profile.modelErrors.get(model) unguarded in
-  // modelOf — which runs on every resolveModel, prepareCall, and stream. This
-  // package builds the profile directly, so it must carry the same empty map
-  // the settings resolver produces; without it the first turn dies with
-  // "Cannot read properties of undefined (reading 'get')". The 0.1.1 and
-  // 0.1.2 adapters never read the member, so carrying it serves all trains.
+test('the built profile carries the modelErrors diagnostics map', () => {
+  // The resolved pi-ai profile requires a per-model diagnostics map and the
+  // adapter reads profile.modelErrors.get(model) unguarded in modelOf — which
+  // runs on every resolveModel, prepareCall, and stream. This package builds
+  // the profile directly, so it must carry the same empty map the settings
+  // resolver produces; without it the first turn dies with
+  // "Cannot read properties of undefined (reading 'get')".
   const { profiles } = resolveRoute({});
   const profile = profiles.get('openai-codex');
   assert.ok(profile.modelErrors instanceof Map, 'modelErrors is a Map');
@@ -215,27 +256,6 @@ test('the built profile carries the 0.1.5 modelErrors diagnostics map', () => {
   // The discovery-driven rebuild must keep the member too.
   const discovered = resolveRoute({}, { getModels: () => [] });
   assert.ok(discovered.profiles.get(discovered.route).modelErrors instanceof Map);
-});
-
-test('the settings namespace resolves identically on both harness lines', () => {
-  // Harness 0.1.2-rc.1 removed the settingsNamespace helper this package used
-  // to import by name — a missing ESM named export fails at link time and
-  // would take the whole host row down. The namespace import plus identity
-  // fallback keeps the same namespace string on 0.1.1 (real validator) and
-  // 0.1.2+ (register validates internally).
-  assert.equal(SETTINGS_NS, 'llm-openai-codex');
-  assert.equal(settingsNamespaceOf('llm-openai-codex'), 'llm-openai-codex');
-  // 0.1.1 still runs its own validator, so an invalid name throws there;
-  // the 0.1.2+ fallback is an identity and leaves validation to
-  // settings.register. Both outcomes are the documented contract.
-  const invalid = (() => {
-    try {
-      return settingsNamespaceOf('not a namespace');
-    } catch {
-      return undefined;
-    }
-  })();
-  assert.ok(invalid === undefined || typeof invalid === 'string');
 });
 
 test('plugin identity matches the composition contract', () => {
@@ -278,15 +298,17 @@ test('an unknown model is rejected before credentials resolve', async () => {
   }
 });
 
-test('an image request sends a valid attachment policy', async () => {
+test('an image request sends a valid attachment target', async () => {
   const scratch = await scratchAuthFile(codexCliDocument({ expMs: Date.now() + HOUR, accountId: 'acct-live' }));
   const attachments = {
-    async readImageRequest(_ref, policy) {
-      if (!Number.isSafeInteger(policy.maxPixels) || policy.maxPixels <= 0) {
-        throw new Error('Image request maxPixels must be a positive integer.');
-      }
-      if (!Number.isSafeInteger(policy.maxBytes) || policy.maxBytes <= 0) {
-        throw new Error('Image request maxBytes must be a positive integer.');
+    // Harness 0.1.7 turns the route's pixel budget into concrete target
+    // dimensions per attachment, so a profile without requestImagePixelBudget
+    // or requestImageMaxBytes reaches this seam as an unusable target.
+    async readImageRequest(_ref, target) {
+      for (const key of ['width', 'height', 'maxBytes']) {
+        if (!Number.isSafeInteger(target[key]) || target[key] <= 0) {
+          throw new Error(`Image request ${key} must be a positive integer.`);
+        }
       }
       throw new Error('IMAGE_POLICY_ACCEPTED');
     },

@@ -27,6 +27,25 @@ test('host and client Typert contributions expose the same eight direct endpoint
   }
 });
 
+test('every typert codec meets the loader strict-codec contract', () => {
+  // @deepseek-ai/dsh-typert-loader's requireStrictCodec rejects the whole
+  // manifest unless every parameter and result codec is strict, carries a
+  // typeSymbol, and exposes a create() factory — the gateway and registry both
+  // materialize the boundary with codec.create().parse(value). A manifest that
+  // fails this never mounts: the entry dies with "has no create() factory".
+  for (const invocation of TYPERT.invocations) {
+    const codecs = [...invocation.parameters.map((parameter) => parameter.codec), invocation.result];
+    assert.ok(codecs.length > 0);
+    for (const codec of codecs) {
+      assert.equal(codec.mode, 'strict', `${invocation.id} codec mode`);
+      assert.equal(typeof codec.typeSymbol, 'string', `${invocation.id} codec typeSymbol`);
+      assert.equal(typeof codec.create, 'function', `${invocation.id} codec has a create() factory`);
+      assert.equal(typeof codec.create().parse, 'function', `${invocation.id} factory yields a parseable schema`);
+      assert.equal(codec.create(), codec.create(), `${invocation.id} factory memoizes one schema`);
+    }
+  }
+});
+
 test('the models status codec accepts a secret-free snapshot and rejects everything else', () => {
   const modelsStatus = TYPERT.invocations.find((item) => item.method === 'refreshModels').result.schema;
   assert.deepEqual(
