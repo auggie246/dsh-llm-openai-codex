@@ -98,7 +98,9 @@ Add this exact block to `~/.dsh/profiles/web/cordis.patch.yml`.
 
 Restart `dsh web`, or restart your DSH entry point.
 Then select an `openai-codex/<model>` model.
-Configure the connection on the sidebar's **Plugins → dsh-llm-openai-codex → llm-openai-codex → Configure** page.
+Configure the connection on the sidebar's **Plugins → dsh-llm-openai-codex** page: the login card shows directly under the package description.
+The row's **Configure** page shows the same card.
+Switching the bundle on also offers a **Connect now** prompt that opens that page.
 
 ### Uninstall
 

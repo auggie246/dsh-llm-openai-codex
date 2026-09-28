@@ -39,7 +39,7 @@ test('browser factory assigns exports through its local module object', async ()
   assert.doesNotMatch(source, /snapshot\.accountId/);
 });
 
-test('registers the Settings card before the optional Remote bridge settles', async () => {
+test('registers the Plugins-page cards before the optional Remote bridge settles', async () => {
   const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
   let handoff;
   vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { handoff = value; } } } });
@@ -49,22 +49,26 @@ test('registers the Settings card before the optional Remote bridge settles', as
   });
   let releaseMount;
   const mount = new Promise((resolve) => { releaseMount = resolve; });
-  let card;
-  let slotName;
+  const registrations = [];
+  const injectedSlots = [];
   const started = client.apply({
     effect(callback) { return callback(); },
     remote: { $mount: () => mount },
     slots: {
-      inject(name, callback) { slotName = name; callback(); },
-      register(options) { card = options; return () => {}; },
+      inject(name, callback) { injectedSlots.push(name); callback(); },
+      register(options) { registrations.push(options); return () => {}; },
     },
   });
   await Promise.resolve();
-  // Harness 0.1.7 configures a bundle row on the Plugins page, whose
-  // `plugins.row.config` slot is keyed `<package name>#<row id>`.
-  assert.equal(slotName, 'plugins.row.config');
-  assert.equal(card?.name, 'plugins.row.config');
-  assert.equal(card?.key, 'dsh-llm-openai-codex#llm-openai-codex');
+  // Harness 0.1.7 configures bundles only on the Plugins page. The card must
+  // be registered on all three keyed slots before the Remote mount settles,
+  // so a slow or failed bridge never hides the login surface.
+  assert.deepEqual(injectedSlots, ['plugins.row.config', 'plugins.bundle.config', 'plugins.bundle.activation']);
+  assert.deepEqual(registrations.map(({ name, key }) => `${name} ${key}`), [
+    'plugins.row.config dsh-llm-openai-codex#llm-openai-codex',
+    'plugins.bundle.config dsh-llm-openai-codex',
+    'plugins.bundle.activation dsh-llm-openai-codex',
+  ]);
   releaseMount(async () => {});
   await started;
 });
@@ -89,10 +93,39 @@ test('OAuth facade resolves its dynamically mounted Remote through ctx.get()', a
     remote,
     slots: {
       inject(_name, callback) { callback(); },
-      register(options) { card = options; return () => {}; },
+      register(options) { if (options.name === 'plugins.row.config') card = options; return () => {}; },
     },
   });
   assert.deepEqual(await card.inject().remote.status(), { ok: true, value: { connected: true } });
+});
+
+test('the activation prompt wires Connect now and Later to the Plugins page callbacks', async () => {
+  const source = await readFile(new URL('../lib/client.js', import.meta.url), 'utf8');
+  let handoff;
+  vm.runInNewContext(source, { window: { __ModuleLoader__: { load(value) { handoff = value; } } } });
+  const elements = [];
+  const client = handoff.factory((specifier) => {
+    if (specifier === 'react') return { createElement: (type, props, ...children) => { elements.push({ type, props, children }); return null; } };
+    throw new Error(`Unexpected client dependency: ${specifier}`);
+  });
+  const components = new Map();
+  client.apply({
+    effect(callback) { return callback(); },
+    get() { return undefined; },
+    remote: { $mount: async () => async () => {} },
+    slots: {
+      inject(_name, callback) { callback(); },
+      register(options, component) { components.set(options.name, component); return () => {}; },
+    },
+  });
+  const onOpenDetails = () => {};
+  const onDismiss = () => {};
+  elements.length = 0;
+  components.get('plugins.bundle.activation')({ packageName: 'dsh-llm-openai-codex', onOpenDetails, onDismiss });
+  const buttons = elements.filter((element) => element.type === 'button');
+  assert.equal(buttons.filter((element) => element.props.onClick === onOpenDetails).length, 1);
+  assert.equal(buttons.filter((element) => element.props.onClick === onDismiss).length, 1);
+  assert.match(JSON.stringify(elements), /ChatGPT subscription/);
 });
 
 test('a pending login shows a countdown, a reopen link, and a cancel action', async () => {
