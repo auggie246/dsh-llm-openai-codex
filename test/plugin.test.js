@@ -8,10 +8,17 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { builtinProviders } from '@earendil-works/pi-ai/providers/all';
 import { Config, apply, assertAdapterContract, inject, name, resolveRoute } from '../lib/index.js';
 import { codexCliDocument, scratchAuthFile } from './helpers.js';
 
 const HOUR = 3600_000;
+
+// Two distinct ids from the live catalog; tests never hardcode a slug a
+// pi-ai upgrade can retire (the generated catalog churns on its own schedule).
+const catalogModels = builtinProviders().find((provider) => provider.id === 'openai-codex').getModels();
+const KNOWN = catalogModels[0].id;
+const ALSO_KNOWN = catalogModels[1].id;
 
 /** A mock host context exposing the seam a host row consumes. */
 function mockCtx({ attachments, typert = false } = {}) {
@@ -92,29 +99,29 @@ test('an explicit retryPolicy replaces the route default verbatim', () => {
 test('config.models narrows the catalog and reports unknown ids instead of refusing the route', () => {
   // Discovery can make an id valid before the installed catalog knows it, so
   // an unknown filter id is a warning with a served remainder, never a throw.
-  const { profiles, unknownModelIds } = resolveRoute({ models: ['gpt-5.4-mini', 'gpt-9000-imaginary'] });
+  const { profiles, unknownModelIds } = resolveRoute({ models: [KNOWN, 'gpt-9000-imaginary'] });
   assert.deepEqual(
     profiles.get('openai-codex').piProvider.getModels().map((m) => m.id),
-    ['gpt-5.4-mini'],
+    [KNOWN],
   );
   assert.deepEqual(unknownModelIds, ['gpt-9000-imaginary']);
   // Catalog order is the served order now; the filter selects, not reorders.
-  assert.deepEqual(resolveRoute({ models: ['gpt-5.4-mini'] }).profiles.get('openai-codex').piProvider.getModels().map((m) => m.id), ['gpt-5.4-mini']);
+  assert.deepEqual(resolveRoute({ models: [KNOWN] }).profiles.get('openai-codex').piProvider.getModels().map((m) => m.id), [KNOWN]);
 });
 
 test('modelOverrides reshape resolved catalog models without touching their siblings', () => {
   const { profiles } = resolveRoute({
     modelOverrides: {
-      'gpt-5.4-mini': { name: 'Mini (tuned)', contextWindow: 100_000, maxTokens: 16_000, reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', xhigh: false } },
+      [KNOWN]: { name: 'Mini (tuned)', contextWindow: 100_000, maxTokens: 16_000, reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', xhigh: false } },
     },
   });
-  const model = profiles.get('openai-codex').piProvider.getModels().find((m) => m.id === 'gpt-5.4-mini');
+  const model = profiles.get('openai-codex').piProvider.getModels().find((m) => m.id === KNOWN);
   assert.equal(model.name, 'Mini (tuned)');
   assert.equal(model.contextWindow, 100_000);
   assert.equal(model.maxTokens, 16_000);
   assert.equal(model.thinkingLevelMap.xhigh, null, 'a false effort pins the level unsupported');
-  const untouched = profiles.get('openai-codex').piProvider.getModels().find((m) => m.id === 'gpt-5.4');
-  assert.equal(untouched.contextWindow, 272_000, 'siblings keep the catalog values');
+  const untouched = profiles.get('openai-codex').piProvider.getModels().find((m) => m.id === ALSO_KNOWN);
+  assert.equal(untouched.contextWindow, catalogModels.find((m) => m.id === ALSO_KNOWN).contextWindow, 'siblings keep the catalog values');
 });
 
 test('apply registers exactly the configured route with the llm service', () => {
@@ -239,7 +246,7 @@ test('the registered adapter answers the token meter imageRequestPricing probe',
   apply(ctx, { modelDiscovery: 'off' });
   const adapter = registrations[0].adapter;
   assert.equal(typeof adapter.imageRequestPricing, 'function');
-  assert.equal(adapter.imageRequestPricing('openai-codex', 'gpt-5.4'), undefined);
+  assert.equal(adapter.imageRequestPricing('openai-codex', KNOWN), undefined);
 });
 
 test('the built profile carries the modelErrors diagnostics map', () => {
@@ -348,7 +355,7 @@ test('an image request sends a valid attachment target', async () => {
 
 test('discovery off warns about unknown config.models ids at registration', () => {
   const { ctx, logs } = mockCtx();
-  apply(ctx, { modelDiscovery: 'off', models: ['gpt-9000-imaginary', 'gpt-5.4-mini'] });
+  apply(ctx, { modelDiscovery: 'off', models: ['gpt-9000-imaginary', KNOWN] });
   assert.ok(
     logs.warn.some((m) => m.includes('gpt-9000-imaginary') && m.includes('model discovery')),
     'names the unservable id and the remedy',
@@ -383,7 +390,7 @@ test('model discovery adopts a cached manifest and serves a model the catalog la
       if (!ids.includes('gpt-9000-imaginary')) await new Promise((resolve) => setTimeout(resolve, 10));
     }
     assert.ok(ids.includes('gpt-9000-imaginary'), 'the cached manifest model reaches the picker');
-    assert.ok(ids.includes('gpt-5.4'), 'the installed catalog still serves alongside it');
+    assert.ok(ids.includes(KNOWN), 'the installed catalog still serves alongside it');
     const info = await adapter.resolveModel('openai-codex', 'gpt-9000-imaginary');
     assert.equal(info.name, 'Imaginary 9000');
     assert.equal(info.context.contextWindow, 400_000);

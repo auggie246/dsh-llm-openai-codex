@@ -40,14 +40,14 @@ The paired Web card starts a browser PKCE OAuth login or a device-code fallback,
 
 > [!IMPORTANT]
 > The login card lives on the sidebar **Plugins** page, not in Settings.
-> Harness 0.1.7 moved all plugin configuration there.
+> Harness 0.2.0 configures all plugins there.
 > Open **Plugins → dsh-llm-openai-codex** in the left sidebar: the card sits directly under the package description.
 
 ## Install
 
 Requirements:
 
-- DeepSeek Harness `0.1.7-rc.2` with a `web` profile. Older harness lines — `0.1.1-rc.2`, `0.1.2-rc.1`, and `0.1.5-rc.x` — are no longer supported: harness 0.1.7 replaced the settings service and the Typert codec contract this plugin depends on.
+- DeepSeek Harness `0.2.0-rc.2` with a `web` profile. Older harness lines — the whole `0.1.x` series — are no longer supported.
 - Node.js `>=22.19.0`.
 - A ChatGPT subscription that includes Codex access.
 - Either DSH-managed credentials or a ChatGPT Codex CLI login.
@@ -156,11 +156,11 @@ Every plugin configuration key is optional.
         modelRefreshMs: 21600000      # re-fetch every 6 hours; 0 disables the timer
         modelCachePath: <DSH home>/cache/openai-codex-models.json
         modelOverrides: {}
-        models: [gpt-5.4, gpt-5.4-mini]
+        models: [gpt-6-astra, gpt-5.5]
         retryPolicy: { mode: normal, maxRetries: 2 }
 ```
 
-`storage` is the only key the Web writes. Harness 0.1.7 dropped the separate
+`storage` is the only key the Web writes. Since harness 0.1.7 there is no separate
 `settings.yaml` document: a plugin row's `config` block *is* its configuration,
 and only a key the schema declares live-editable can be changed from the page.
 Choosing the other credential source on the login card records `storage` in the

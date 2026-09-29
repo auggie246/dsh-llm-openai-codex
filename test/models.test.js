@@ -23,6 +23,9 @@ import { LlmError } from '@deepseek-ai/dsh-llm';
 
 const catalogModels = builtinProviders().find((provider) => provider.id === 'openai-codex').getModels();
 const KNOWN = catalogModels[0].id;
+// A second catalog id, so merge tests never hardcode a slug a pi-ai upgrade
+// can retire (the generated catalog churns on its own schedule).
+const ALSO_KNOWN = catalogModels.find((model) => model.id !== KNOWN).id;
 
 /** A manifest entry shaped like the backend's, with the fields discovery reads. */
 function manifestEntry(overrides = {}) {
@@ -160,10 +163,19 @@ test('a manifest entry without reasoning levels synthesizes a non-reasoning mode
 });
 
 test('a new sibling of an existing family inherits that exact sibling, not a family-wide guess', () => {
-  const gpt54 = catalogModels.find((model) => model.id === 'gpt-5.4');
-  const model = synthesizeCodexModel(manifestEntry({ slug: 'gpt-5.4-nano' }), catalogModels);
-  assert.deepEqual(model.input, gpt54.input);
-  assert.deepEqual(model.compat, gpt54.compat, 'two-segment prefix beats the generic root tie');
+  // A fabricated catalog, because the live one's families churn: the contract
+  // is that the two-segment family prefix wins even when a root-only sibling
+  // offers strictly more (modalities, context window).
+  const family = {
+    id: 'gpt-8-base', name: 'Base 8', api: 'openai-codex-responses', provider: 'openai-codex',
+    baseUrl: 'https://chatgpt.com/backend-api', input: ['text'],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 10_000, maxTokens: 4_000, reasoning: true, compat: { fromSibling: 'family' },
+  };
+  const root = { ...family, id: 'gpt-9-titan', input: ['text', 'image'], contextWindow: 9_000_000, compat: { fromSibling: 'root' } };
+  const model = synthesizeCodexModel(manifestEntry({ slug: 'gpt-8-nano' }), [root, family]);
+  assert.deepEqual(model.input, family.input);
+  assert.deepEqual(model.compat, family.compat, 'two-segment prefix beats the generic root tie');
 });
 
 test('merging keeps catalog entries for known slugs and appends unmentioned catalog models', () => {
@@ -173,7 +185,7 @@ test('merging keeps catalog entries for known slugs and appends unmentioned cata
   });
   const kept = models.find((model) => model.id === KNOWN);
   assert.equal(kept, catalogModels.find((model) => model.id === KNOWN), 'known slugs keep the exact catalog entry');
-  assert.ok(models.some((model) => model.id === 'gpt-5.4'), 'catalog models the manifest never mentions survive');
+  assert.ok(models.some((model) => model.id === ALSO_KNOWN), 'catalog models the manifest never mentions survive');
 });
 
 test('merging synthesizes unknown slugs and drops models the backend explicitly hides', () => {
@@ -181,15 +193,15 @@ test('merging synthesizes unknown slugs and drops models the backend explicitly 
     catalogModels,
     manifestEntries: [
       manifestEntry({ slug: 'gpt-9000-imaginary' }),
-      manifestEntry({ slug: 'gpt-5.4', visibility: 'hide' }),
+      manifestEntry({ slug: ALSO_KNOWN, visibility: 'hide' }),
     ],
   });
   assert.ok(models.some((model) => model.id === 'gpt-9000-imaginary'));
-  assert.equal(models.some((model) => model.id === 'gpt-5.4'), false, 'an explicit per-account hide removes the picker entry');
+  assert.equal(models.some((model) => model.id === ALSO_KNOWN), false, 'an explicit per-account hide removes the picker entry');
   // An older/partial manifest must not remove anything it does not mention.
   const partial = mergeCodexModels({ catalogModels, manifestEntries: [manifestEntry({ slug: KNOWN })] }).models;
   assert.deepEqual(
-    partial.filter((model) => model.id === 'gpt-5.4').length,
+    partial.filter((model) => model.id === ALSO_KNOWN).length,
     1,
   );
 });
